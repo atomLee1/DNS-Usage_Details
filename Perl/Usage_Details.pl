@@ -116,7 +116,7 @@ $api_request->content( to_json( \%api_param ) );
 my $api_lwp = LWP::UserAgent->new;
 my $api_result = $api_lwp->request( $api_request );
 my $api_decode = decode_json ( $api_result->content ) ;
-my $api_key = $api_decode->{'data'}->{'token'};
+my $api_token = $api_decode->{'data'}->{'token'};
 
 
 #Set start and end timestamps to proper format
@@ -135,7 +135,7 @@ else
 	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'hosts' )}
 
 $session_uri = "https://api2.dynect.net/REST/QPSReport";
-$api_decode = &api_request($session_uri, 'POST', %api_param); 
+$api_decode = &api_request($session_uri, 'POST', $api_token, %api_param); 
 
 #Store the returned csv string
 my $csv_string = ( $api_decode->{'data'}->{'csv'});
@@ -176,14 +176,14 @@ print "CSV file: $opt_file written sucessfully.\n";
 #api logout
 %api_param = ();
 $session_uri = 'https://api2.dynect.net/REST/Session';
-&api_request($session_uri, 'DELETE', %api_param); 
+&api_request($session_uri, 'DELETE', $api_token, %api_param); 
 
 
 
 #Accepts Zone URI, Request Type, and Any Parameters
 sub api_request{
 	#Get in variables, send request, send parameters, get result, decode, display if error
-	my ($zone_uri, $req_type, %api_param) = @_;
+	my ($zone_uri, $req_type, $api_key, %api_param) = @_;
 	$api_request = HTTP::Request->new($req_type, $zone_uri);
 	$api_request->header ( 'Content-Type' => 'application/json', 'Auth-Token' => $api_key );
 	$api_request->content( to_json( \%api_param ) );

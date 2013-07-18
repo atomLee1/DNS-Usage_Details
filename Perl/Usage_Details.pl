@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 #An example script which will print the usage for a specific zone, fqdn or print for all fqdn broken down by fqdn
    

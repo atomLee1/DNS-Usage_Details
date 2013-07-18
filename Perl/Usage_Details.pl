@@ -12,6 +12,8 @@
 # Options:
 # -h --help	Show the help message and exit
 # -z --zone	Return the QPS for a specific zone
+# -t --title	Prints the header information (Default is off)
+# -a --all	Outputs all hostnames with QPS (default)
 # -n --node	Return the QPS for a specific node(hostname)
 # -f --file	File to output data to in csv format
 # -s --start	Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01
@@ -27,14 +29,12 @@
 use warnings;
 use strict;
 use Data::Dumper;
-use XML::Simple;
 use Config::Simple;
 use Getopt::Long qw(:config no_ignore_case);
 use LWP::UserAgent;
 use JSON;
 use Time::Local;
-use IO::Handle;
-use Text::CSV;
+use Text::CSV_XS;
 
 my $opt_zone="";
 my $opt_node="";
@@ -43,13 +43,15 @@ my $opt_start="";
 my $opt_end="";
 my $opt_help;
 my $opt_all;
+my $opt_title;
 my $fh;
-my $csv = Text::CSV->new ( { binary => 1, eol => "\n" } ) or die "Cannot use CSV: ".Text::CSV->error_diag ();
+my $csv = Text::CSV_XS->new ( { binary => 1, eol => "\n" } ) or die "Cannot use CSV: ".Text::CSV->error_diag ();
 
 GetOptions(
 	'help' => \$opt_help,
 	'file=s' => \$opt_file,
 	'all' => \$opt_all,
+	'title' => \$opt_title,
 	'zone=s' =>\$opt_zone,
 	'node=s' =>\$opt_node,
 	'start=s' =>\$opt_start,
@@ -59,9 +61,10 @@ GetOptions(
 if ($opt_help) {
 	print "Options:\n";
 	print "-h --help\t Show the help message and exit\n";
+	print "-t --title\t Prints the header information (Default is off)\n";
 	print "-a --all\t Outputs all hostnames with QPS (default)\n";
 	print "-z --zone\t Return the QPS for a specific zone\n";
-	print "-n --node\t Return the QPS for a specific node(hostname)\n";
+	print "-n --node\t Return the QPS for a specific node (hostname)\n";
 	print "-f --file\t File to output data to in csv format\n";
 	print "-s --start\t Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01\n";
 	print "-e --end\t End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59\n";
@@ -137,14 +140,14 @@ my $api_result = $api_lwp->request( $api_request );
 my $api_decode = decode_json ( $api_result->content ) ;
 my $api_key = $api_decode->{'data'}->{'token'};
 
-
+#UPATE BREAKDOWN TO ZONE/NODE
 #Set the parameters if either fqdn or zone is set.
 if($opt_node ne "")
-	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'hosts', hosts => $opt_node )}
+	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'rrecs', hosts => $opt_node )}
 elsif($opt_zone ne "")
-	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'hosts', zones => $opt_zone )}
+	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'rrecs', zones => $opt_zone )}
 else
-	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'hosts' )}
+	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'zones' )}
 
 $session_uri = "https://api2.dynect.net/REST/QPSReport";
 $api_decode = &api_request($session_uri, 'POST', $api_key, %api_param); 
@@ -155,18 +158,21 @@ my $csv_string = ( $api_decode->{'data'}->{'csv'});
 #Read in the csv from the response
 my %hash;
 my $linenum = 0;
+$csv->parse ($csv_string);
+my @lines = $csv->fields ();
+print $csv_string;
+print Dumper(@lines); 
 #Read in each line one at a time.
-my @lines = split /\n/, $csv_string;
+#my @lines = split /\n/, $csv_string;
 foreach my $line (@lines){
 	#Set each value in the csv to timestamp, hostname, queries
-	$csv->parse ($line);
 	my @columns = $csv->fields ();
 	my($t, $h, $q) = @columns;
 	
 	#If its the first line, save it
-	if ($linenum == 0 ){
-		print "$q\t\t$h\n";
-		$csv->print ($fh, [ $q, $h] ) unless($opt_file eq "");
+	if ($linenum == 0){
+		print "$q\t\t$h\n" unless($opt_file ne "" || !$opt_title);
+		$csv->print ($fh, [ $q, $h] ) unless($opt_file eq "" || !$opt_title);
 	}
 	#Else if the hash exists, add the queries up
 	else{
@@ -175,8 +181,8 @@ foreach my $line (@lines){
 	$linenum ++;
 }
 #Goes through the hash printing the queries to the string
-foreach my $hostname ( keys %hash ){
-	print "$hash{$hostname}\t\t$hostname\n";
+foreach my $hostname ( sort keys %hash ){
+	print "$hash{$hostname}\t\t$hostname\n" unless($opt_file ne "");
 	$csv->print ($fh, [ $hash{$hostname}, $hostname] ) unless($opt_file eq "");
 }
 

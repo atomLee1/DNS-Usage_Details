@@ -1,13 +1,8 @@
 #!/usr/bin/env perl
 
-#An example script which will print the usage for a specific zone, fqdn or print for all fqdn broken down by fqdn
-   
-#The credentials are read out of a configuration file in the same directory named config.cfg in the format:
-
-#[Dynect]
-#user : user_name
-#customer : customer_name
-#password: password
+#This script will print a QPS report for all zones in an account, all hostnames in a zone, or record types in a hostname. 
+#Optionally, you can display the header information (off by default). You can send the QPS report to a CSV file.
+#You can set your own breakdown using zones, hosts, or rrecs. The default values are in the help menu.
 
 # Options:
 # -h --help		Show the help message and exit

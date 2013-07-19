@@ -10,14 +10,15 @@
 #password: password
 
 # Options:
-# -h --help	Show the help message and exit
-# -z --zone	Return the QPS for a specific zone
-# -t --title	Prints the header information (Default is off)
-# -a --all	Outputs all hostnames with QPS (default)
-# -n --node	Return the QPS for a specific node(hostname)
-# -f --file	File to output data to in csv format
-# -s --start	Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01
-# -e --end	End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59
+# -h --help		Show the help message and exit
+# -a --all		Outputs QPS for all zones
+# -z --zone		Return the QPS by hosts
+# -n --node		Return the record QPS for a specific node (hostname)
+# -s --start		Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01
+# -e --end		End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59
+# -f --file		File to output data to in csv format
+# -t --title		Prints the header information (Default is off)
+# -b --breakdown	Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs
 
 # Example Usage
 # perl Usage_Details.pl -z [example.com] -s [07-01-2013] -e [07-15-2013]
@@ -28,9 +29,8 @@
 
 use warnings;
 use strict;
-use Data::Dumper;
 use Config::Simple;
-use Getopt::Long qw(:config no_ignore_case);
+use Getopt::Long;
 use LWP::UserAgent;
 use JSON;
 use Time::Local;
@@ -41,6 +41,7 @@ my $opt_node="";
 my $opt_file="";
 my $opt_start="";
 my $opt_end="";
+my $opt_breakdown="";
 my $opt_help;
 my $opt_all;
 my $opt_title;
@@ -52,23 +53,26 @@ GetOptions(
 	'file=s' => \$opt_file,
 	'all' => \$opt_all,
 	'title' => \$opt_title,
+	'breakdown=s' =>\$opt_breakdown,
 	'zone=s' =>\$opt_zone,
 	'node=s' =>\$opt_node,
 	'start=s' =>\$opt_start,
 	'end=s' => \$opt_end,
 );
+
 #Printing help menu
 if ($opt_help) {
-	print "Options:\n";
+	print "\nOptions:\n";
 	print "-h --help\t Show the help message and exit\n";
-	print "-t --title\t Prints the header information (Default is off)\n";
-	print "-a --all\t Outputs all hostnames with QPS (default)\n";
-	print "-z --zone\t Return the QPS for a specific zone\n";
-	print "-n --node\t Return the QPS for a specific node (hostname)\n";
-	print "-f --file\t File to output data to in csv format\n";
+	print "-a --all\t Outputs QPS for all zones\n";
+	print "-z --zone\t Return the QPS by hosts\n";
+	print "-n --node\t Return the record QPS for a specific node (hostname)\n";
 	print "-s --start\t Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01\n";
 	print "-e --end\t End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59\n";
-	print "Usage Example:\n";
+	print "-f --file\t File to output data to in csv format\n";
+	print "-t --title\t Prints the header information (Default is off)\n";
+	print "-b --breakdown\t Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs\n";
+	print "\nUsage Example:\n";
 	print "perl Usage_Details.pl -z [example.com] -s [07-01-2013] -e [07-15-2013]\n\tWill print out the QPS for each node in the zone, example.com\n";
 	print "perl Usage_Details.pl -z [node.example.com] -s [07-01-2013] -e [07-15-2013] -f [filename.csv]\n\tWill write the file to filename.csv with the QPS for the node in the zone, node.example.com\n";
 	exit;
@@ -101,8 +105,6 @@ else
 	print "Need to use \"-s [07-01-2013]\" and \"e [07-15-2013]\"\n";
 	exit;
 }
-
-
 
 #Create config reader
 my $cfg = new Config::Simple();
@@ -140,14 +142,13 @@ my $api_result = $api_lwp->request( $api_request );
 my $api_decode = decode_json ( $api_result->content ) ;
 my $api_key = $api_decode->{'data'}->{'token'};
 
-#UPATE BREAKDOWN TO ZONE/NODE
 #Set the parameters if either fqdn or zone is set.
 if($opt_node ne "")
-	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'rrecs', hosts => $opt_node )}
+	{$opt_breakdown = 'rrecs' unless($opt_breakdown ne ""); %api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown, hosts => $opt_node )}
 elsif($opt_zone ne "")
-	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'rrecs', zones => $opt_zone )}
+	{$opt_breakdown = 'hosts' unless($opt_breakdown ne ""); %api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown, zones => $opt_zone )}
 else
-	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'zones' )}
+	{$opt_breakdown = 'zones' unless($opt_breakdown ne ""); %api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown )}
 
 $session_uri = "https://api2.dynect.net/REST/QPSReport";
 $api_decode = &api_request($session_uri, 'POST', $api_key, %api_param); 
@@ -158,14 +159,12 @@ my $csv_string = ( $api_decode->{'data'}->{'csv'});
 #Read in the csv from the response
 my %hash;
 my $linenum = 0;
-$csv->parse ($csv_string);
-my @lines = $csv->fields ();
-print $csv_string;
-print Dumper(@lines); 
+
 #Read in each line one at a time.
-#my @lines = split /\n/, $csv_string;
+my @lines = split /\n/, $csv_string;
 foreach my $line (@lines){
 	#Set each value in the csv to timestamp, hostname, queries
+	$csv->parse ($line);
 	my @columns = $csv->fields ();
 	my($t, $h, $q) = @columns;
 	

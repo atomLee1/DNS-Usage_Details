@@ -13,24 +13,23 @@
 
 #Get options from command line
 
+#
+
+$shortopts .= "h"; 
+$shortopts .= "f:"; 
+$shortopts .= "a"; 
+$shortopts .= "t";
+$shortopts .= "b:";
 $shortopts .= "z:"; 
 $shortopts .= "n:"; 
-$shortopts .= "f:"; 
-$shortopts .= "h"; 
-$shortopts .= "a"; 
 $shortopts .= "s:";
 $shortopts .= "e:";
-$longopts  = array(
-			"zones:",
-			"nodes:",
-			"file:",
-			"help",
-			"all",
-			"start:",
-			"end:");	
-$options = getopt($shortopts, $longopts);
+$options = getopt($shortopts);
 
 $opt_file .= $options["f"]; 
+$opt_all .= $options["a"]; 
+$opt_title .= $options["t"]; 
+$opt_breakdown .= $options["b"]; 
 $opt_zone .= $options["z"]; 
 $opt_node .= $options["n"]; 
 $opt_start .= $options["s"]; 
@@ -39,15 +38,29 @@ $line_num = 0;
 
 #Print help menu
 if (is_bool($options["h"])) {
-	print "\t\t-h, --help\t\t Show the help message and exit\n";
-	print "\t\t-a, --all\t\t Outputs all hostnames with QPS (default)\n";
-	print "\t\t-z, --zone\t\t Return the QPS for a specific zone\n\n";
-	print "\t\t-f, --fqdn\t\t Return the QPS for a specific fqdn(hostname)\n\n";
-	print "\t\t-c, --csv\t\t File to output data to in csv format\n\n";
-	print "\t\t-s, --start\t\t Start Date for QPS(ie: 2012-09-30). The start time begins on 00:00:01\n\n";
-	print "\t\t-e, --end\t\t End Date for QPS(ie: 2012-09-30). The start time begins on 23:59:59\n\n";
+	print "\nOptions:\n";
+        print "-h\t Show the help message and exit\n";
+        print "-a\t Outputs QPS for all zones\n";
+        print "-z\t Return the QPS by hosts\n";
+        print "-n\t Return the record QPS for a specific node (hostname)\n";
+        print "-s\t Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01\n";
+        print "-e\t End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59\n";
+        print "-f\t File to output data to in csv format\n";
+        print "-t\t Prints the header information (Default is off)\n";
+        print "-b\t Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs\n";
+        print "\nUsage Example:\n";
+        print "php Usage_Details.php -z [example.com] -s [07-01-2013] -e [07-15-2013]\n\tWill print out the QPS for each node in the zone, example.com\n";
+        print "php Usage_Details.php -z [node.example.com] -s [07-01-2013] -e [07-15-2013] -f [filename.csv]\n\tWill write the file to filename.csv with the QPS for the node in the zone, node.example.com\n";
+
 	exit;}
-		
+#Setting values for set flags
+if(!is_string($options["b"]))
+	{$opt_breakdown = "";}
+if(is_bool($options["t"]))
+	{$opt_title = true;}
+else
+	{$opt_title = false;}
+	
 # Parse ini file (can fail)
 #Set the values from file to variables or die
 $ini_array = parse_ini_file("config.ini") or die;
@@ -56,7 +69,7 @@ $api_un = $ini_array['un'] or die("User Name required in config.ini for API logi
 $api_pw = $ini_array['pw'] or die("Password required in config.ini for API login\n");	
 
 # Prevent the user from proceeding if they have not entered -n or -z
-if(($opt_zone == "" && $opt_node == "") || ($opt_zone != "" && $opt_node != ""))
+if(($opt_zone == "" && $opt_node == "" && !is_bool($options["a"])) || ($opt_zone != "" && $opt_node != "" && !is_bool($options["a"])))
 {
 	print "You must enter \"-z [example.com]\" or \"-n [node.example.com]\"\n";
 	exit;
@@ -72,8 +85,6 @@ if($opt_start == ""|| $opt_end == "")
 # Setting file name and opening file for writing
 if(is_string($options["f"]))
 {	
-	if(!preg_match('/.csv$/', $opt_file))
-		$opt_file = "$opt_file.csv";
 	$fp = fopen($opt_file, 'w') or die;
 	print "Writing CSV file...\n";
 }
@@ -108,18 +119,19 @@ $opt_end = mktime(23,59,59,$m,$d,$y);
 
 # Setting params depending on user input	
 if($opt_node != "")	
-	$api_params = array ('start_ts'=> $opt_start, 'end_ts' => $opt_end, 'breakdown' => 'hosts', 'hosts' => $opt_node);
+	{if($opt_breakdown == "") {$opt_breakdown = 'rrecs';} 
+	$api_params = array ('start_ts'=> $opt_start, 'end_ts' => $opt_end, 'breakdown' => $opt_breakdown, 'hosts' => $opt_node);}
 elseif($opt_zone != "")
-	$api_params = array ('start_ts'=> $opt_start, 'end_ts' => $opt_end, 'breakdown' => 'hosts', 'zones' => $opt_zone);
+	{if($opt_breakdown == "") {$opt_breakdown = 'hosts';} 
+	$api_params = array ('start_ts'=> $opt_start, 'end_ts' => $opt_end, 'breakdown' => $opt_breakdown, 'zones' => $opt_zone);}
 else
-	$api_params = array ('start_ts'=> $opt_start, 'end_ts' => $opt_end, 'breakdown' => 'hosts');
-
+	{if($opt_breakdown == "") {$opt_breakdown = 'zones';} 
+	$api_params = array ('start_ts'=> $opt_start, 'end_ts' => $opt_end, 'breakdown' => $opt_breakdown);}
 $session_uri = 'https://api2.dynect.net/REST/QPSReport/'; 
 $decoded_result = api_request($session_uri, 'POST', $api_params,  $token);	
 
 foreach($decoded_result->data as $csvin);
 	{$csv = $csvin;}
-
 # Breaking the string into lines
 $csvData = str_getcsv($csv, "\n");
 foreach($csvData as $csvLine)
@@ -131,9 +143,15 @@ foreach($csvData as $csvLine)
 	$q = $value[2];
 	if($line_num == 0)
 	{
-		print "$q\t\t$h\n"; # Print queires and hostnames
-		if($opt_file != "") #If -f is set, send output to file
-			fputcsv($fp, array($q, $h)); #Send evertying in the array to the csv
+		#If opt_title has is set,  print the headers
+		if($opt_title)
+		{
+			if($opt_file != "") #If -f is set, send output to file
+				fputcsv($fp, array($q, $h)); #Send evertying in the array to the csv
+			else
+			print "$q\t\t$h\n"; # Print queires and hostnames
+			
+		}
 	}
 	else
 	{
@@ -145,9 +163,10 @@ foreach($csvData as $csvLine)
 #Print out each query count and unique hostname
 foreach($sum as $host=>$query)
 {
-	print "$query\t\t$host\n";
 	if($opt_file != "") #If -f is set, send output to file
 		fputcsv($fp, array($query, $host)); #Send evertying in the array to the csv
+	else
+		print "$query\t\t$host\n";
 }
 
 #Close file if

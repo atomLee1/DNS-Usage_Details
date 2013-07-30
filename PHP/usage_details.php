@@ -5,15 +5,15 @@
 #You can set your own breakdown using zones, hosts, or rrecs. The default values are in the help menu.
 
 # Options:
-# -h --help             Show the help message and exit
-# -a --all              Outputs QPS for all zones
-# -z --zone             Return the QPS by hosts
-# -n --node             Return the record QPS for a specific node (hostname)
-# -s --start            Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01
-# -e --end              End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59
-# -f --file             File to output data to in csv format
-# -t --title            Prints the header information (Default is off)
-# -b --breakdown        Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs
+# -h            Show the help message and exit
+# -a            Outputs QPS for all zones
+# -z            Return the QPS by hosts
+# -n            Return the record QPS for a specific node (hostname)
+# -s            Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01
+# -e            End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59
+# -f            File to output data to in csv format
+# -t		Prints the header information (Default is off)
+# -b            Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs
 
 # Example Usage
 # php Usage_Details.pl -z [example.com] -s [07-01-2013] -e [07-15-2013]

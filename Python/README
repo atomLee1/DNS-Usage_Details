@@ -31,25 +31,38 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 
 ___________________________________________________________________________________
 
-This script will print a QPS report for all zones in an account, all hostnames in a zone, or record types in a hostname. 
-Optionally, you can display the header information (off by default). You can send the QPS report to a CSV file. 
-You can set your own breakdown using zones, hosts, or rrecs. The default values are in the help menu.
+An example script which will print the usage for a specific zone, fqdn or print for all fqdn broken down by fqdn
+   
+The credentials are read out of a configuration file in the same directory named credentials.cfg in the format:
+
+[Dynect]
+user : user_name
+customer : customer_name
+password: password
+
+Usage: %python qps_detail.py -s START -e END [-h|-a|-z|-f|-c]
 
 Options:
--h --help  	    Show the help message and exit
--a --all		    Outputs QPS for all zones
--z --zone		    Return the QPS by hosts
--n --node		    Return the record QPS for a specific node (hostname)
--s --start	    Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01
--e --end		    End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59
--f --file		    File to output data to in csv format
--t --title      Prints the header information (Default is off)
--b --breakdown	Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs
+	-h, --help            show this help message and exit
+    	-a, --all             Output all hostnames with QPS (default)
+	-z ZONE, --zone=ZONE  Return the QPS for a specific zone
+	-f FQDN, --fqdn=FQDN  Return the QPS for a specific fqdn (hostname)
+	-c FILE, --csv=FILE   File to output data to in csv format
+	-s START, --start=START  Start date for QPS (ie: 2012-09-30). The start time
+					      begins on 00:00:01
+	-e END, --end=END     End date for QPS (ie: 2012-09-30). The end time
+						  finshes at 23:59:59
 
-Example Usage
-perl Usage_Details.pl -z [example.com] -s [07-01-2013] -e [07-15-2013]
-Will print out the QPS for each node in the zone, example.com
 
-perl Usage_Details.pl -z [node.example.com] -s [07-01-2013] -e [07-15-2013] -f [filename.csv]
-Will write the file to filename.csv with the QPS for the node in the zone, node.example.com
+The library is available at: https://github.com/dyninc/Dynect-API-Python-Library
 
+
+=========================================================================================
+Usage Examples:
+  
+ - Print all usage from 1/8/2012 to 1/9/2012 and also create a csv named output.csv in the same directory
+  % python qps_detail.py -s 2012-08-01 -e 2012-09-01 -c output.csv
+
+
+ - Print all usage from 1/8/2012 to 1/9/2012 for the hostname (fqdn) www.tester.com and also create a csv named output.csv in the same directory
+  % python qps_detail.py -s 2012-08-01 -e 2012-09-01 -c output.csv -f www.tester.com

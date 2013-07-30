@@ -1,85 +1,105 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
-#An example script which will print the usage for a specific zone, fqdn or print for all fqdn broken down by fqdn
-   
-#The credentials are read out of a configuration file in the same directory named credentials.cfg in the format:
+#This script will print a QPS report for all zones in an account, all hostnames in a zone, or record types in a hostname. 
+#Optionally, you can display the header information (off by default). You can send the QPS report to a CSV file.
+#You can set your own breakdown using zones, hosts, or rrecs. The default values are in the help menu.
 
-#[Dynect]
-#user : user_name
-#customer : customer_name
-#password: password
+# Options:
+# -h --help		Show the help message and exit
+# -a --all		Outputs QPS for all zones
+# -z --zone		Return the QPS by hosts
+# -n --node		Return the record QPS for a specific node (hostname)
+# -s --start		Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01
+# -e --end		End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59
+# -f --file		File to output data to in csv format
+# -t --title		Prints the header information (Default is off)
+# -b --breakdown	Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs
 
-#Usage: %perl qps_detail.pl -s START -e END [-h|-a|-z|-f|-c]
+# Example Usage
+# perl Usage_Details.pl -z [example.com] -s [07-01-2013] -e [07-15-2013]
+# 	Will print out the QPS for each node in the zone, example.com
 
-#Options:
-#	-h, --help            show this help message and exit
-#    	-a, --all             Output all hostnames with QPS (default)
-#	-z ZONE, --zone=ZONE  Return the QPS for a specific zone
-#	-f FQDN, --fqdn=FQDN  Return the QPS for a specific fqdn (hostname)
-#	-c FILE, --csv=FILE   File to output data to in csv format
-#	-s START, --start=START  Start date for QPS (ie: 2012-09-30). The start time begins on 00:00:01
-#	-e END, --end=END     End date for QPS (ie: 2012-09-30). The end time finshes at 23:59:59
-
-#The library is available at: https://github.com/dyninc/Dynect-API-Python-Library
-
-##TODO
-#What is -a doing?
-
+# perl Usage_Details.pl -z [node.example.com] -s [07-01-2013] -e [07-15-2013] -f [filename.csv]
+# 	Will write the file to filename.csv with the QPS for the node in the zone, node.example.com
 
 
 use warnings;
 use strict;
-use Data::Dumper;
-use XML::Simple;
 use Config::Simple;
-use Getopt::Long qw(:config no_ignore_case);
+use Getopt::Long;
 use LWP::UserAgent;
 use JSON;
 use Time::Local;
-use IO::Handle;
-use Text::CSV;
+use Text::CSV_XS;
 
-#Get Options
 my $opt_zone="";
-my $opt_file="";
-my $opt_help;
 my $opt_node="";
+my $opt_file="";
+my $opt_start="";
+my $opt_end="";
+my $opt_breakdown="";
+my $opt_help;
 my $opt_all;
-my $opt_start;
-my $opt_end=localtime(time);
+my $opt_title;
 my $fh;
-my $csv;
+my $csv = Text::CSV_XS->new ( { binary => 1, eol => "\n" } ) or die "Cannot use CSV: ".Text::CSV->error_diag ();
 
 GetOptions(
 	'help' => \$opt_help,
 	'file=s' => \$opt_file,
 	'all' => \$opt_all,
+	'title' => \$opt_title,
+	'breakdown=s' =>\$opt_breakdown,
 	'zone=s' =>\$opt_zone,
 	'node=s' =>\$opt_node,
 	'start=s' =>\$opt_start,
 	'end=s' => \$opt_end,
 );
+
 #Printing help menu
 if ($opt_help) {
-	print "\tOptions:\n";
-	print "\t\t-h, --help\t\t Show the help message and exit\n";
-	print "\t\t-a, --all\t\t Outputs all hostnames with QPS (default)\n";
-	print "\t\t-z, --zone\t\t Return the QPS for a specific zone\n";
-	print "\t\t-n, --node\t\t Return the QPS for a specific node(hostname)\n";
-	print "\t\t-f, --file\t\t File to output data to in csv format\n";
-	print "\t\t-s, --start\t\t Start Date for QPS(ie: 2012-09-30). The start time begins on 00:00:01\n";
-	print "\t\t-e, --end\t\t End Date for QPS(ie: 2012-09-30). The start time begins on 23:59:59\n";
+	print "\nOptions:\n";
+	print "-h --help\t Show the help message and exit\n";
+	print "-a --all\t Outputs QPS for all zones\n";
+	print "-z --zone\t Return the QPS by hosts\n";
+	print "-n --node\t Return the record QPS for a specific node (hostname)\n";
+	print "-s --start\t Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01\n";
+	print "-e --end\t End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59\n";
+	print "-f --file\t File to output data to in csv format\n";
+	print "-t --title\t Prints the header information (Default is off)\n";
+	print "-b --breakdown\t Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs\n";
+	print "\nUsage Example:\n";
+	print "perl Usage_Details.pl -z [example.com] -s [07-01-2013] -e [07-15-2013]\n\tWill print out the QPS for each node in the zone, example.com\n";
+	print "perl Usage_Details.pl -z [node.example.com] -s [07-01-2013] -e [07-15-2013] -f [filename.csv]\n\tWill write the file to filename.csv with the QPS for the node in the zone, node.example.com\n";
 	exit;
 }
 
-
-if($opt_file ne "")
+#Zone & node are required
+elsif ($opt_zone eq "" && $opt_node eq "" && !$opt_all)
+{
+	print "Need to use \"-a\" \"-z [example.com]\" or \"-n [node.example.com]\".\n";
+	exit;
+}
+# Setup the csv file for writing
+elsif($opt_file ne "")
 {
 	# Setting up new csv file
-	# If opt_file does not end in ".csv" append it
-	$opt_file = "$opt_file.csv" unless ($opt_file =~ /.csv$/);
-	$csv = Text::CSV->new ( { binary => 1, eol => "\n" } ) or die "Cannot use CSV: ".Text::CSV->error_diag ();
 	open $fh, ">", $opt_file  or die "new.csv: $!";
+}
+# Ensure both -s and -e are set
+if ($opt_start ne "" && $opt_end ne "")
+{
+	#Set start and end timestamps to proper format
+	#Set month to m-1 because timelocal month starts at 0
+	my ($m, $d, $y) = split '-', $opt_start;
+	$opt_start = timegm(1,0,0,$d,$m-1,$y);
+	($m, $d, $y) = split '-', $opt_end;
+	$opt_end = timegm(59,59,23,$d,$m-1,$y);
+}
+else
+{
+	print "Need to use \"-s [07-01-2013]\" and \"e [07-15-2013]\"\n";
+	exit;
 }
 
 #Create config reader
@@ -118,24 +138,16 @@ my $api_result = $api_lwp->request( $api_request );
 my $api_decode = decode_json ( $api_result->content ) ;
 my $api_key = $api_decode->{'data'}->{'token'};
 
-
-#Set start and end timestamps to proper format
-#Set month to m-1 because timelocal month starts at 0
-my ($y, $m, $d) = split '-', $opt_start;
-$opt_start = timegm(1,0,0,$d,$m-1,$y);
-($y, $m, $d) = split '-', $opt_end;
-$opt_end = timegm(59,59,23,$d,$m-1,$y);
-
 #Set the parameters if either fqdn or zone is set.
 if($opt_node ne "")
-	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'hosts', hosts => $opt_node )}
+	{$opt_breakdown = 'rrecs' unless($opt_breakdown ne ""); %api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown, hosts => $opt_node )}
 elsif($opt_zone ne "")
-	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'hosts', zones => $opt_zone )}
+	{$opt_breakdown = 'hosts' unless($opt_breakdown ne ""); %api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown, zones => $opt_zone )}
 else
-	{%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => 'hosts' )}
+	{$opt_breakdown = 'zones' unless($opt_breakdown ne ""); %api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown )}
 
 $session_uri = "https://api2.dynect.net/REST/QPSReport";
-$api_decode = &api_request($session_uri, 'POST', %api_param); 
+$api_decode = &api_request($session_uri, 'POST', $api_key, %api_param); 
 
 #Store the returned csv string
 my $csv_string = ( $api_decode->{'data'}->{'csv'});
@@ -143,15 +155,19 @@ my $csv_string = ( $api_decode->{'data'}->{'csv'});
 #Read in the csv from the response
 my %hash;
 my $linenum = 0;
+
 #Read in each line one at a time.
 my @lines = split /\n/, $csv_string;
 foreach my $line (@lines){
 	#Set each value in the csv to timestamp, hostname, queries
-	my($t, $h, $q)  = split(",", $line, 3);
+	$csv->parse ($line);
+	my @columns = $csv->fields ();
+	my($t, $h, $q) = @columns;
+	
 	#If its the first line, save it
-	if ($linenum == 0 ){
-		print "$q\t\t$h\n";
-		$csv->print ($fh, [ $q, $h] ) unless($opt_file eq "");
+	if ($linenum == 0){
+		print "$q\t\t$h\n" unless($opt_file ne "" || !$opt_title);
+		$csv->print ($fh, [ $q, $h] ) unless($opt_file eq "" || !$opt_title);
 	}
 	#Else if the hash exists, add the queries up
 	else{
@@ -160,8 +176,8 @@ foreach my $line (@lines){
 	$linenum ++;
 }
 #Goes through the hash printing the queries to the string
-foreach my $hostname ( keys %hash ){
-	print "$hash{$hostname}\t\t$hostname\n";
+foreach my $hostname ( sort keys %hash ){
+	print "$hash{$hostname}\t\t$hostname\n" unless($opt_file ne "");
 	$csv->print ($fh, [ $hash{$hostname}, $hostname] ) unless($opt_file eq "");
 }
 
@@ -176,16 +192,16 @@ print "CSV file: $opt_file written sucessfully.\n";
 #api logout
 %api_param = ();
 $session_uri = 'https://api2.dynect.net/REST/Session';
-&api_request($session_uri, 'DELETE', %api_param); 
+&api_request($session_uri, 'DELETE', $api_key, %api_param); 
 
 
 
 #Accepts Zone URI, Request Type, and Any Parameters
 sub api_request{
 	#Get in variables, send request, send parameters, get result, decode, display if error
-	my ($zone_uri, $req_type, %api_param) = @_;
+	my ($zone_uri, $req_type, $api_token, %api_param) = @_;
 	$api_request = HTTP::Request->new($req_type, $zone_uri);
-	$api_request->header ( 'Content-Type' => 'application/json', 'Auth-Token' => $api_key );
+	$api_request->header ( 'Content-Type' => 'application/json', 'Auth-Token' => $api_token );
 	$api_request->content( to_json( \%api_param ) );
 	$api_result = $api_lwp->request($api_request);
 	$api_decode = decode_json( $api_result->content);

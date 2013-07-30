@@ -1,20 +1,28 @@
 #!/usr/bin/php
 <?php
-#This script prints out the notes of your zone with the option to print to a file.
-#The credentials are read in from a configuration file in the same directory.
-#The file is named credentials.cfg in the format:
+#This script will print a QPS report for all zones in an account, all hostnames in a zone, or record types in a hostname.
+#Optionally, you can display the header information (off by default). You can send the QPS report to a CSV file.
+#You can set your own breakdown using zones, hosts, or rrecs. The default values are in the help menu.
 
-#Usage: %php znr.php  [-z]
-#Options:
-#-h, --help		Show this help message and exit
-#-z, --zones		Output all zones
-#-l, --limit		Set the maximum number of notes to retrieve
-#-f, --file		File to output list to
+# Options:
+# -h --help             Show the help message and exit
+# -a --all              Outputs QPS for all zones
+# -z --zone             Return the QPS by hosts
+# -n --node             Return the record QPS for a specific node (hostname)
+# -s --start            Start Date for QPS(ie: 07-01-2013) Start time begins on 00:00:01
+# -e --end              End Date for QPS(ie: 07-15-2013) End time begins on 23:59:59
+# -f --file             File to output data to in csv format
+# -t --title            Prints the header information (Default is off)
+# -b --breakdown        Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs
 
-#Get options from command line
+# Example Usage
+# php Usage_Details.pl -z [example.com] -s [07-01-2013] -e [07-15-2013]
+#       Will print out the QPS for each node in the zone, example.com
 
-#
+# php Usage_Details.pl -z [node.example.com] -s [07-01-2013] -e [07-15-2013] -f [filename.csv]
+#       Will write the file to filename.csv with the QPS for the node in the zone, node.example.com
 
+#Options
 $shortopts .= "h"; 
 $shortopts .= "f:"; 
 $shortopts .= "a"; 

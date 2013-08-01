@@ -6,7 +6,6 @@ use strict;
 use warnings;
 use LWP::UserAgent;
 use JSON;
-use Data::Dumper;
 
 #Constructor
 sub new {	
@@ -116,7 +115,6 @@ sub request {
 	else {
 		$api_request->content();
 	}
-	print Dumper $api_request;
 	my $api_result = $classid->{'lwp'}->request( $api_request );
 	#check if call succeeded
 	my $res =  $classid->check_res( $api_result );
@@ -169,7 +167,6 @@ sub check_res {
 			return 0;
 		}
 		else {
-			print "Job still incomplete, sleeping\n";
 			#status incomplete, wait 5 seconds and check again
 			sleep(2);
 			my $job_uri = "https://api2.dynect.net/REST/Job/$classid->{'resultref'}->{'job_id'}/";
@@ -183,8 +180,6 @@ sub check_res {
 			$classid->{'resultref'} = decode_json( $api_result->content );
 		}
 	}
-	print "Job finished OK, returning\n";
-	print Dumper $classid->{'resultref'};
 	return 1;
 }
 

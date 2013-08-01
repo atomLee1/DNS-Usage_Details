@@ -27,11 +27,8 @@ use warnings;
 use strict;
 use Config::Simple;
 use Getopt::Long;
-use LWP::UserAgent;
-use JSON;
 use Time::Local;
 use Text::CSV_XS;
-use Data::Dumper;
 
 #Import DynECT handler
 use FindBin;

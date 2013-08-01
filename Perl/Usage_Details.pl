@@ -31,6 +31,12 @@ use LWP::UserAgent;
 use JSON;
 use Time::Local;
 use Text::CSV_XS;
+use Data::Dumper;
+
+#Import DynECT handler
+use FindBin;
+use lib "$FindBin::Bin/DynECT";  # use the parent directory
+require DynECT::DNS_REST;
 
 my $opt_zone="";
 my $opt_node="";
@@ -125,29 +131,29 @@ my $apipw = $configopt{'pw'} or do {
 };
 
 #API login
-my $session_uri = 'https://api2.dynect.net/REST/Session';
-my %api_param = ( 
-	'customer_name' => $apicn,
-	'user_name' => $apiun,
-	'password' => $apipw,);
-my $api_request = HTTP::Request->new('POST',$session_uri);
-$api_request->header ( 'Content-Type' => 'application/json' );
-$api_request->content( to_json( \%api_param ) );
-my $api_lwp = LWP::UserAgent->new;
-my $api_result = $api_lwp->request( $api_request );
-my $api_decode = decode_json ( $api_result->content ) ;
-my $api_key = $api_decode->{'data'}->{'token'};
+my $dynect = DynECT::DNS_REST->new;
+$dynect->login( $apicn, $apiun, $apipw) or
+	die $dynect->message;
 
+my %api_param;
+my $api_decode;
 #Set the parameters if either fqdn or zone is set.
-if($opt_node ne "")
-	{$opt_breakdown = 'rrecs' unless($opt_breakdown ne ""); %api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown, hosts => $opt_node )}
-elsif($opt_zone ne "")
-	{$opt_breakdown = 'hosts' unless($opt_breakdown ne ""); %api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown, zones => $opt_zone )}
-else
-	{$opt_breakdown = 'zones' unless($opt_breakdown ne ""); %api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown )}
+if($opt_node ne "")	{
+	$opt_breakdown = 'rrecs' unless($opt_breakdown ne ""); 
+	%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown, hosts => $opt_node )
+}
+elsif($opt_zone ne "") {
+	$opt_breakdown = 'hosts' unless($opt_breakdown ne ""); 
+	%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown, zones => $opt_zone )
+}
+else {
+	$opt_breakdown = 'zones' unless($opt_breakdown ne ""); 
+	%api_param = (start_ts => $opt_start, end_ts => $opt_end, breakdown => $opt_breakdown )
+}
 
-$session_uri = "https://api2.dynect.net/REST/QPSReport";
-$api_decode = &api_request($session_uri, 'POST', $api_key, %api_param); 
+$dynect->request( '/REST/QPSReport', 'POST',  \%api_param)
+	or die $dynect->message;
+$api_decode = $dynect->result; 
 
 #Store the returned csv string
 my $csv_string = ( $api_decode->{'data'}->{'csv'});
@@ -190,60 +196,5 @@ print "CSV file: $opt_file written sucessfully.\n";
 }
 
 #api logout
-%api_param = ();
-$session_uri = 'https://api2.dynect.net/REST/Session';
-&api_request($session_uri, 'DELETE', $api_key, %api_param); 
-
-
-
-#Accepts Zone URI, Request Type, and Any Parameters
-sub api_request{
-	#Get in variables, send request, send parameters, get result, decode, display if error
-	my ($zone_uri, $req_type, $api_token, %api_param) = @_;
-	$api_request = HTTP::Request->new($req_type, $zone_uri);
-	$api_request->header ( 'Content-Type' => 'application/json', 'Auth-Token' => $api_token );
-	$api_request->content( to_json( \%api_param ) );
-	$api_result = $api_lwp->request($api_request);
-	$api_decode = decode_json( $api_result->content);
-	$api_decode = &api_fail(\$api_key, $api_decode) unless ($api_decode->{'status'} eq 'success');
-	return $api_decode;
-}
-
-#Expects 2 variable, first a reference to the API key and second a reference to the decoded JSON response
-sub api_fail {
-	my ($api_keyref, $api_jsonref) = @_;
-	#set up variable that can be used in either logic branch
-	my $api_request;
-	my $api_result;
-	my $api_decode;
-	my $api_lwp = LWP::UserAgent->new;
-	my $count = 0;
-	#loop until the job id comes back as success or program dies
-	while ( $api_jsonref->{'status'} ne 'success' ) {
-		if ($api_jsonref->{'status'} ne 'incomplete') {
-			foreach my $msgref ( @{$api_jsonref->{'msgs'}} ) {
-				print "API Error:\n";
-				print "\tInfo: $msgref->{'INFO'}\n" if $msgref->{'INFO'};
-				print "\tLevel: $msgref->{'LVL'}\n" if $msgref->{'LVL'};
-				print "\tError Code: $msgref->{'ERR_CD'}\n" if $msgref->{'ERR_CD'};
-				print "\tSource: $msgref->{'SOURCE'}\n" if $msgref->{'SOURCE'};
-			};
-			#api logout or fail
-			$api_request = HTTP::Request->new('DELETE','https://api2.dynect.net/REST/Session');
-			$api_request->header ( 'Content-Type' => 'application/json', 'Auth-Token' => $$api_keyref );
-			$api_result = $api_lwp->request( $api_request );
-			$api_decode = decode_json ( $api_result->content);
-			exit;
-		}
-		else {
-			sleep(5);
-			my $job_uri = "https://api2.dynect.net/REST/Job/$api_jsonref->{'job_id'}/";
-			$api_request = HTTP::Request->new('GET',$job_uri);
-			$api_request->header ( 'Content-Type' => 'application/json', 'Auth-Token' => $$api_keyref );
-			$api_result = $api_lwp->request( $api_request );
-			$api_jsonref = decode_json( $api_result->content );
-		}
-	}
-	$api_jsonref;
-}
+$dynect->logout;
 

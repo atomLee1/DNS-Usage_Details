@@ -89,21 +89,23 @@ elsif($opt_file ne "")
 	# Setting up new csv file
 	open $fh, ">", $opt_file  or die "new.csv: $!";
 }
+
 # Ensure both -s and -e are set
-if ($opt_start ne "" && $opt_end ne "")
+if ($opt_start && $opt_end )
 {
 	#Set start and end timestamps to proper format
 	#Set month to m-1 because timelocal month starts at 0
-	my ($m, $d, $y) = split '-', $opt_start;
+	my ($y, $m, $d) = split '-', $opt_start;
 	$opt_start = timegm(1,0,0,$d,$m-1,$y);
-	($m, $d, $y) = split '-', $opt_end;
+	($y, $m, $d) = split '-', $opt_end;
 	$opt_end = timegm(59,59,23,$d,$m-1,$y);
 }
 else
 {
-	print "Need to use \"-s [07-01-2013]\" and \"e [07-15-2013]\"\n";
+	print "Need to use \"-s [2013-07-01]\" and \"-e [2013-07-15]\"\n";
 	exit;
 }
+
 
 #Create config reader
 my $cfg = new Config::Simple();

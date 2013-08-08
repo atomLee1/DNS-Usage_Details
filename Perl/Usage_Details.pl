@@ -16,10 +16,10 @@
 # -b --breakdown	Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs
 
 # Example Usage
-# perl Usage_Details.pl -z [example.com] -s [07-01-2013] -e [07-15-2013]
+# perl Usage_Details.pl -z [example.com] -s [2013-07-01] -e [2013-07-15]
 # 	Will print out the QPS for each node in the zone, example.com
 
-# perl Usage_Details.pl -z [node.example.com] -s [07-01-2013] -e [07-15-2013] -f [filename.csv]
+# perl Usage_Details.pl -z [node.example.com] -s [2013-07-01] -e [2013-07-15] -f [filename.csv]
 # 	Will write the file to filename.csv with the QPS for the node in the zone, node.example.com
 
 
@@ -72,8 +72,8 @@ if ($opt_help) {
 	print "-t --title\t Prints the header information (Default is off)\n";
 	print "-b --breakdown\t Set a custom breakdown. Defaults: -a: zones -z: hosts -n: rrecs\n";
 	print "\nUsage Example:\n";
-	print "perl Usage_Details.pl -z [example.com] -s [07-01-2013] -e [07-15-2013]\n\tWill print out the QPS for each node in the zone, example.com\n";
-	print "perl Usage_Details.pl -z [node.example.com] -s [07-01-2013] -e [07-15-2013] -f [filename.csv]\n\tWill write the file to filename.csv with the QPS for the node in the zone, node.example.com\n";
+	print "perl Usage_Details.pl -z [example.com] -s [2013-07-01] -e [2013-07-15]\n\tWill print out the QPS for each node in the zone, example.com\n";
+	print "perl Usage_Details.pl -z [node.example.com] -s [2013-07-01] -e [2013-07-15] -f [filename.csv]\n\tWill write the file to filename.csv with the QPS for the node in the zone, node.example.com\n";
 	exit;
 }
 
